@@ -21,6 +21,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.material.MaterialTheme
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.app.ShareCompat
 import androidx.core.widget.NestedScrollView
@@ -29,6 +31,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.navArgs
+import com.google.android.material.composethemeadapter.MdcTheme
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
 import com.google.samples.apps.sunflower.R
@@ -68,6 +71,26 @@ class PlantDetailFragment : Fragment() {
                     }
                 }
             }
+
+
+            /**
+             * By default, Compose disposes of the Composition whenever the ComposeView becomes detached from a window. This is undesirable when ComposeView is used in fragments for multiple reasons:
+
+            The Composition must follow the fragment's view lifecycle for Compose UI View types to save state, and
+            to keep the Compose UI elements on the screen when transitions, or window transitions happen. During transitions, the ComposeView itself is still visible even after it is detached from the window.
+            You can manually call the AbstractComposeView.disposeComposition method to dispose of the Composition manually. Alternatively, for disposing Compositions automatically when they're no longer needed, set a different strategy or create your own by calling the setViewCompositionStrategy method.
+
+            Use the DisposeOnViewTreeLifecycleDestroyed strategy to dispose of the Composition when the LifecycleOwner of the fragment is destroyed.
+             */
+            composeView.apply{
+                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+                setContent {
+                    MdcTheme {
+                        PlantDetailDescription(plantDetailViewModel)
+                    }
+                }
+            }
+
 
             var isToolbarShown = false
 
