@@ -20,38 +20,76 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.samples.crane.ui.captionTextStyle
 import androidx.compose.ui.graphics.SolidColor
 
+class EditableUserInputState(private val hint: String, initialText: String) {
+    var text by mutableStateOf(initialText)
+
+    val isHint: Boolean
+        get() = text == hint
+
+
+    /**
+     * Creating a custom saver
+    A Saver describes how an object can be converted into something which is Saveable. Implementations of a Saver need to override two functions:
+
+    save to convert the original value to a saveable one.
+    restore to convert the restored value to an instance of the original class.
+    For our case, instead of creating a custom implementation of Saver for the EditableUserInputState class, we can use some of the existing Compose APIs such as listSaver or mapSaver (that stores the values to save in a List or Map) to reduce the amount of code that we need to write.
+
+    It's a good practice to place Saver definitions close to the class they work with. Because it needs to be statically accessed, let's add the Saver for EditableUserInputState in a companion object. In the base/EditableUserInput.kt file, add the implementation of the Saver:
+     */
+    companion object {
+        val Saver: Saver<EditableUserInputState, *> = listSaver(
+            save = { listOf(it.hint, it.text) },
+            restore = {
+                EditableUserInputState(
+                    hint = it[0],
+                    initialText = it[1],
+                )
+            }
+        )
+    }
+}
+
+/**
+ * State holders always need to be remembered in order to keep them in the Composition and not create a new one every time. It's a good practice to create a method in the same file that does this to remove boilerplate and avoid any mistakes that might occur. In the base/EditableUserInput.kt file, add this code
+ */
+
+@Composable
+fun rememberEditableUserInputState(hint: String): EditableUserInputState =
+    rememberSaveable(hint, saver = EditableUserInputState.Saver) {
+        EditableUserInputState(hint, hint)
+    }
+
+
+/**
+ * We're going to use EditableUserInputState instead of text and isHint, but we don't want to just use it as an internal state in CraneEditableUserInput as there's no way for the caller composable to control the state. Instead, we want to hoist EditableUserInputState so that callers can control the state of CraneEditableUserInput. If we hoist the state, then the composable can be used in previews and be tested more easily since you're able to modify its state from the caller.
+ */
 @Composable
 fun CraneEditableUserInput(
-    hint: String,
+    state: EditableUserInputState = rememberEditableUserInputState(""),
     caption: String? = null,
-    @DrawableRes vectorImageId: Int? = null,
-    onInputChanged: (String) -> Unit
+    @DrawableRes vectorImageId: Int? = null
 ) {
-    // TODO Codelab: Encapsulate this state in a state holder
-    var textState by remember { mutableStateOf(hint) }
-    val isHint = { textState == hint }
 
     CraneBaseUserInput(
         caption = caption,
-        tintIcon = { !isHint() },
-        showCaption = { !isHint() },
+        tintIcon = { !state.isHint },
+        showCaption = { !state.isHint },
         vectorImageId = vectorImageId
     ) {
         BasicTextField(
-            value = textState,
+            value = state.text,
             onValueChange = {
-                textState = it
-                if (!isHint()) onInputChanged(textState)
+                 state.text = it
             },
-            textStyle = if (isHint()) {
+            textStyle = if (state.isHint) {
                 captionTextStyle.copy(color = LocalContentColor.current)
             } else {
                 MaterialTheme.typography.body1.copy(color = LocalContentColor.current)

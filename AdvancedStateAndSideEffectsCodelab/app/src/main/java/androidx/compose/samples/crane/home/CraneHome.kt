@@ -16,17 +16,8 @@
 
 package androidx.compose.samples.crane.home
 
-import androidx.compose.material.BackdropScaffold
-import androidx.compose.material.BackdropValue
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.Scaffold
-import androidx.compose.material.rememberBackdropScaffoldState
-import androidx.compose.material.rememberScaffoldState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.*
+import androidx.compose.runtime.*
 import androidx.compose.samples.crane.base.CraneDrawer
 import androidx.compose.samples.crane.base.CraneTabBar
 import androidx.compose.samples.crane.base.CraneTabs
@@ -36,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.insets.statusBarsPadding
+import kotlinx.coroutines.launch
 
 typealias OnExploreItemClicked = (ExploreModel) -> Unit
 
@@ -49,6 +41,7 @@ fun CraneHome(
     modifier: Modifier = Modifier,
 ) {
     val scaffoldState = rememberScaffoldState()
+    val scope = rememberCoroutineScope()
     Scaffold(
         scaffoldState = scaffoldState,
         modifier = Modifier.statusBarsPadding(),
@@ -60,12 +53,34 @@ fun CraneHome(
             modifier = modifier,
             onExploreItemClicked = onExploreItemClicked,
             openDrawer = {
-                // TODO Codelab: rememberCoroutineScope step - open the navigation drawer
-                // scaffoldState.drawerState.open()
+                /**
+                 * We cannot use LaunchedEffect as before because we cannot call composables in openDrawer. We're not in the Composition.
+                 */
+                scope.launch {
+                    scaffoldState.drawerState.open()
+                }
             }
         )
     }
 }
+
+
+/**
+ * LaunchedEffect vs rememberCoroutineScope
+Using LaunchedEffect in this case wasn't possible because we needed to trigger the call to create a coroutine
+in a regular callback that was outside of the Composition.
+
+Looking back at the landing screen step that used LaunchedEffect, could you use rememberCoroutineScope and
+call scope.launch { delay(); onTimeout(); } instead of using LaunchedEffect?
+
+You could've done that, and it would've seemed to work, but it wouldn't be correct. As explained in the
+Thinking in Compose documentation, composables can be called by Compose at any moment.
+LaunchedEffect guarantees that the side-effect will be executed when the call to that composable
+makes it into the Composition. If you use rememberCoroutineScope and scope.launch in the body of the
+LandingScreen, the coroutine will be executed every time LandingScreen is called by Compose regardless of
+whether that call makes it into the Composition or not. Therefore, you'll waste resources and you won't be
+executing this side-effect in a controlled environment.
+ */
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -75,8 +90,12 @@ fun CraneHomeContent(
     modifier: Modifier = Modifier,
     viewModel: MainViewModel = viewModel(),
 ) {
-    // TODO Codelab: collectAsState step - consume stream of data from the ViewModel
-    val suggestedDestinations: List<ExploreModel> = remember { emptyList() }
+
+    /**
+     * We want our UI in the CraneHomeContent composable to update whenever there's a new item emitted into the suggestedDestinations stream of data. We can use the StateFlow.collectAsState() function. When used in a composable function, collectAsState() collects values from the StateFlow and represents the latest value via Compose's State API.
+     * This will make the Compose code that reads that state value recompose on new emissions.
+     */
+    val suggestedDestinations by viewModel.suggestedDestinations.collectAsState()
 
     val onPeopleChanged: (Int) -> Unit = { viewModel.updatePeople(it) }
     var tabSelected by remember { mutableStateOf(CraneScreen.Fly) }
